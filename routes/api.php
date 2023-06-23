@@ -20,9 +20,6 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 Route::group(['prefix' => 'auth'], function () {
-    Route::get('facebook', [SocialAuthController::class, 'loginUsingFacebook'])->name('facebook.login');
-    Route::get('facebook/callback', [SocialAuthController::class, 'callbackFromFacebook'])->name('facebook.callback');
-
-    Route::get('google', [SocialAuthController::class, 'loginWithGoogle'])->name('google.login');
-    Route::get('google/callback', [SocialAuthController::class, 'callbackFromGoogle'])->name('google.callback');
+    Route::get('{provider}', [SocialAuthController::class, 'loginUsingProvider'])->name('social.login');
+    Route::get('{provider}/callback', [SocialAuthController::class, 'callbackFromProvider'])->name('social.callback');
 });

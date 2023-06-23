@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Mockery\Exception;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Socialite\Facades\Socialite;
@@ -12,32 +13,50 @@ use Laravel\Socialite\Facades\Socialite;
 class SocialAuthController extends Controller
 {
     /**
-    * Login Using Facebook
+    * Login Using Facebook/Google
     */
-    public function loginUsingFacebook()
+    public function loginUsingProvider($provider)
     {
-        return Socialite::driver('facebook')->stateless()->redirect();
+        try {
+            $url = Socialite::driver($provider)->stateless()
+                ->redirect()->getTargetUrl();
+            return response()->json([
+                'url' => $url,
+            ])->setStatusCode(Response::HTTP_OK);
+
+        } catch (\Exception $e) {
+            return $e;
+        }
     }
     
     /**
-    * Facebook Callback
+    * Facebook/Google Callback
     */
-    public function callbackFromFacebook()
+    public function callbackFromProvider($provider)
     {
         try {
-            $user = Socialite::driver('facebook')->stateless()->user();
-        
-            $saveUser = User::updateOrCreate([
-                'provider' => 'facebook',
-                'provider_id' => $user->getId(),
-            ],[
-                'name' => $user->getName(),
-                'email' => $user->getEmail(),
-                'password' => Hash::make($user->getName().'@'.$user->getId())
-            ]);
-        
+            $user = Socialite::driver($provider)->stateless()->user();
+
+            // Check User Exists
+            if(!$this->checkUserExist($user->getEmail())){
+
+                $saveUser = User::create([
+                    'name' => $user->getName(),
+                    'email' => $user->getEmail(),
+                    'password' => Hash::make($user->getName().'@'.$user->getId()),
+                    'provider' => $provider,
+                    'provider_id' => $user->getId()
+                ]);
+
+            }else{
+                $saveUser = User::where('email',  $user->getEmail())->update([
+                    'provider' => $provider,
+                    'provider_id' => $user->getId(),
+                ]);
+            }
+
             Auth::loginUsingId($saveUser->id);
-        
+
             return redirect()->route('home');
 
         } catch (\Exception $e) {
@@ -54,52 +73,5 @@ class SocialAuthController extends Controller
         }
 
         return false;
-    }
-
-    /**
-    * Login Using Google
-    */
-    public function loginWithGoogle()
-    {
-        return Socialite::driver('google')->stateless()->redirect();
-    }
-
-    /**
-    * Google Callback
-    */
-    public function callbackFromGoogle()
-    {
-        try {
-            $user = Socialite::driver('google')->stateless()->user();
-
-            // Check User Exists
-            if(!$this->checkUserExist($user->getEmail())){
-
-                $saveUser = User::updateOrCreate([
-                    'provider' => 'google',
-                    'provider_id' => $user->getId(),
-                ],[
-                    'name' => $user->getName(),
-                    'email' => $user->getEmail(),
-                    'password' => Hash::make($user->getName().'@'.$user->getId())
-                ]);
-
-            }else{
-                $saveUser = User::where('email',  $user->getEmail())->update([
-                    'provider' => 'google',
-                    'provider_id' => $user->getId(),
-                ]);
-
-                $saveUser = User::where('email', $user->getEmail())->first();
-            }
-
-
-            Auth::loginUsingId($saveUser->id);
-
-            return redirect()->route('home');
-
-        } catch (\Exception $e) {
-            throw new Exception($e->getMessage(), $e->getCode());
-        }
     }
 }
